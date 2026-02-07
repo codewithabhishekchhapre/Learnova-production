@@ -16,7 +16,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-key-change-in-production')
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+_allowed = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',')] + ['.vercel.app', '.onrender.com']
 
 # Application definition
 INSTALLED_APPS = [
@@ -46,6 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -78,14 +80,19 @@ TEMPLATES = [
 # Database - Use SQLite for development, PostgreSQL for production
 DB_ENGINE = os.environ.get('DB_ENGINE', 'sqlite')
 if DB_ENGINE == 'postgresql':
+    _db_host = os.environ.get('DB_HOST', 'localhost')
+    _db_opts = {}
+    if _db_host and _db_host not in ('localhost', '127.0.0.1'):
+        _db_opts = {'sslmode': 'require'}
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.environ.get('DB_NAME', 'learnova_lms'),
             'USER': os.environ.get('DB_USER', 'postgres'),
             'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'HOST': _db_host,
             'PORT': os.environ.get('DB_PORT', '5432'),
+            **({'OPTIONS': _db_opts} if _db_opts else {}),
         }
     }
 else:
@@ -136,5 +143,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS (configure for production)
-CORS_ALLOW_ALL_ORIGINS = DEBUG
+# CORS (set CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app in prod)
+_cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(',') if o.strip()]
+CORS_ALLOW_ALL_ORIGINS = DEBUG or (not CORS_ALLOWED_ORIGINS and bool(os.environ.get('CORS_ALLOW_ALL_ORIGINS')))
